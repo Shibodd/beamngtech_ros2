@@ -2,7 +2,7 @@ import beamngpy.sensors
 import numpy as np
 from rosbags.typesys.store import Typestore
 import scipy.spatial.transform
-import msg_helpers
+from . import msg_helpers
 
 def quat_from_axes(x, y, z):
   rot = np.hstack((
@@ -20,13 +20,13 @@ class AdvancedIMUSensor:
 
   def parse_sample(self, sample):
     ns, stamp = msg_helpers.stamp_from_float(sample['time'], self.typestore)
-
+    
     return ns, self.typestore.types['sensor_msgs/msg/Imu'](
       header = msg_helpers.header(self.typestore, 'map', stamp),
       orientation = msg_helpers.quaternion(self.typestore,
         quat_from_axes(sample['dirX'], sample['dirY'], sample['dirZ'])
       ),
-      angular_velocity = msg_helpers.quaternion(self.typestore, sample['orientation']),
+      angular_velocity = msg_helpers.vector3(self.typestore, sample['angVel']),
       linear_acceleration = msg_helpers.vector3(self.typestore, sample['accRaw']),
       orientation_covariance = np.zeros((9, ), dtype=np.float64),
       angular_velocity_covariance = np.zeros((9, ), dtype=np.float64),
