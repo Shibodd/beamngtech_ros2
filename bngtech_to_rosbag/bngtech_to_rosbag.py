@@ -1,16 +1,15 @@
 import beamngpy
 import beamngpy.sensors
-import json
 from rosbags.typesys import get_typestore
 from rosbags.typesys.stores import Stores
 
-from sensors.advanced_imu import AdvancedIMUSensor
-from sensors.classic_sensors import ClassicSensors, vehicle_state_odometry
+import bag_writer
+
+import sensors.advanced_imu
+import sensors.classic_sensors 
 
 print("Connecting")
 bng = beamngpy.BeamNGpy("192.168.1.2", 64256, quit_on_close=False)
-
-SETUP = True
 
 try:
   bng.open(launch=False)
@@ -33,22 +32,34 @@ try:
     bng.scenario.start()
 
     vehicle.ai.set_mode('span')
-
+  
   typestore = get_typestore(Stores.ROS2_HUMBLE)
-  imu_sensor = AdvancedIMUSensor(typestore, beamngpy.sensors.AdvancedIMU('accel1', bng, vehicle, gfx_update_time=0.005))
   vehicle.sensors.attach('electrics', beamngpy.sensors.Electrics())
   vehicle.sensors.attach('timer', beamngpy.sensors.Timer())
-  classic_sensors = ClassicSensors(typestore, vehicle, {
-    'state': vehicle_state_odometry
-  }, 'timer')
+  
+  
+  imu = sensors.advanced_imu.AdvancedIMUSensor(typestore, 'imu', beamngpy.sensors.AdvancedIMU('accel1', bng, vehicle, gfx_update_time=0.005))
+  classic = sensors.classic_sensors.ClassicSensors(typestore, vehicle, {
+      'pose': ('state', sensors.classic_sensors.odometry_pose),
+      'tf': ('state', sensors.classic_sensors.vehicle_tf),
+      'wheelspeed': ('electrics', sensors.classic_sensors.twist_wheelspeed),
+    }, 'timer')
+
+  topics = {
+    'imu' : ('/bng/imu', ''),
+    'imu_pose': ('/bng/imu/pose', ''),
+    'pose' : ('/bng/pose', ''),
+    'tf': ('/tf', ''),
+    'wheelspeed': ('/bng/wheelspeed', '')
+  }
 
   print("Running - Press CTRL+C to stop.")
-  import pprint
-
+  
   try:
-    while True:
-      pprint.pprint(imu_sensor.poll_msgs())
-      pprint.pprint(classic_sensors.poll_msgs())
+    with bag_writer.BagWriter("output.bag", topics, typestore) as writer:
+      while True:
+        writer.add_msgs(classic.poll_msgs())
+        writer.add_msgs(imu.poll_msgs())
   except KeyboardInterrupt:
     print("Stop requested - stopping...")
 finally:

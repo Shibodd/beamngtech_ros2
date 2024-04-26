@@ -1,5 +1,6 @@
 from rosbags.typesys.store import Typestore
 from . import msg_helpers
+from .geometry_helpers import quat_from_fwd_up
 
 class ClassicSensors:
   def __init__(self, typestore, vehicle, sensors: dict, timer_name: str):
@@ -23,7 +24,7 @@ def odometry_pose(typestore: Typestore, time, sample):
     header = msg_helpers.header(typestore, 'world', stamp),
     pose = typestore.types['geometry_msgs/msg/Pose'](
       position = msg_helpers.point(typestore, sample['pos']),
-      orientation = msg_helpers.quaternion(typestore, sample['rotation'])
+      orientation = msg_helpers.quaternion(typestore, quat_from_fwd_up(sample['dir'], sample['up']))
     )
   )
 
@@ -37,7 +38,7 @@ def vehicle_tf(typestore: Typestore, time, sample):
         child_frame_id = 'vehicle',
         transform = typestore.types['geometry_msgs/msg/Transform'](
           translation = msg_helpers.vector3(typestore, sample['pos']),
-          rotation = msg_helpers.quaternion(typestore, sample['rotation'])
+          rotation = msg_helpers.quaternion(typestore, quat_from_fwd_up(sample['dir'], sample['up']))
         )
       )
     ]
