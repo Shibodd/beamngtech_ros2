@@ -3,11 +3,12 @@ import threading
 import rosbags.rosbag2 as rb2
 
 class BagWriter:
-  def __init__(self, path: str, sensor_topics: dict, typestore):
+  def __init__(self, path: str, sensor_topics: dict, typestore, error_handler):
     self.path = path
     self.sensor_topics = sensor_topics
     self.typestore = typestore
     self.idle = None
+    self.error_handler = error_handler
 
   def add_msgs(self, sensor_data):
     self.msg_queue.put(sensor_data)
@@ -29,18 +30,21 @@ class BagWriter:
     self.thread.join()
 
   def _work(self):
-    with rb2.Writer(self.path) as self.writer:
-      while not self.stop_requested:
-        while True:
-          if self.stop_requested:
-            return
-          try:
-            sensor_data = self.msg_queue.get(timeout=0.5)
-            break
-          except queue.Empty:
-            pass
-        for sensor_name, msgs in sensor_data.items():
-          self._write_msgs(sensor_name, msgs)
+    try:
+      with rb2.Writer(self.path) as self.writer:
+        while not self.stop_requested:
+          while True:
+            if self.stop_requested:
+              return
+            try:
+              sensor_data = self.msg_queue.get(timeout=0.5)
+              break
+            except queue.Empty:
+              pass
+          for sensor_name, msgs in sensor_data.items():
+            self._write_msgs(sensor_name, msgs)
+    except Exception as e:
+      self.error_handler(e)
 
   def _get_conn(self, sensor_name, msgs):
     if not sensor_name in self.connections:

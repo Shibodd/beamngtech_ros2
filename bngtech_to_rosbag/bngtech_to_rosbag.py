@@ -3,6 +3,7 @@ import beamngpy.sensors
 from rosbags.typesys import get_typestore
 from rosbags.typesys.stores import Stores
 
+import signal
 import bag_writer
 
 import sensors.advanced_imu
@@ -25,7 +26,7 @@ try:
     scenario.add_vehicle(vehicle, pos=(-717.121, 101, 118.675), rot_quat=(0, 0, 0.3826834, 0.9238795))
     scenario.make(bng)
 
-    bng.settings.set_deterministic(60) # Set simulator to 60hz temporal resolution
+    bng.settings.set_deterministic(200)
 
     bng.scenario.load(scenario)
     bng.ui.hide_hud()
@@ -38,11 +39,13 @@ try:
   vehicle.sensors.attach('timer', beamngpy.sensors.Timer())
   
   
-  imu = sensors.advanced_imu.AdvancedIMUSensor(typestore, 'imu', beamngpy.sensors.AdvancedIMU('accel1', bng, vehicle, gfx_update_time=0.005))
+  imu = sensors.advanced_imu.AdvancedIMUSensor(typestore, 'imu',
+    beamngpy.sensors.AdvancedIMU('accel1', bng, vehicle, physics_update_time=0.003)
+  )
   classic = sensors.classic_sensors.ClassicSensors(typestore, vehicle, {
-      'pose': ('state', sensors.classic_sensors.odometry_pose),
-      'tf': ('state', sensors.classic_sensors.vehicle_tf),
-      'wheelspeed': ('electrics', sensors.classic_sensors.twist_wheelspeed),
+      'pose': ('state', sensors.classic_sensors.odometry_pose, 0.1),
+      'tf': ('state', sensors.classic_sensors.vehicle_tf, 0.1),
+      'wheelspeed': ('electrics', sensors.classic_sensors.twist_wheelspeed, 0.01),
     }, 'timer')
 
   topics = {
@@ -55,12 +58,27 @@ try:
 
   print("Running - Press CTRL+C to stop.")
   
-  try:
-    with bag_writer.BagWriter("output.bag", topics, typestore) as writer:
-      while True:
-        writer.add_msgs(classic.poll_msgs())
-        writer.add_msgs(imu.poll_msgs())
-  except KeyboardInterrupt:
-    print("Stop requested - stopping...")
+  should_quit = False
+  writer_err = None
+  def handle_sigint(_, __):
+    global should_quit
+    should_quit = True
+    print("Stop requested")
+
+  def error_handler(err):
+    global writer_err, should_quit
+    writer_err = err
+    should_quit = True
+
+  signal.signal(signal.SIGINT, handle_sigint)
+
+  with bag_writer.BagWriter("output.bag", topics, typestore, error_handler) as writer:
+    while not should_quit:
+      writer.add_msgs(classic.poll_msgs())
+      writer.add_msgs(imu.poll_msgs())
+
+    if writer_err:
+      raise Exception(writer_err)
 finally:
+  imu.IMU.remove()
   bng.close()
