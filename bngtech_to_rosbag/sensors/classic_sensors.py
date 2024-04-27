@@ -32,9 +32,10 @@ class ClassicSensors:
 def odometry_pose(typestore: Typestore, time, sample):
   ns, stamp = msg_helpers.stamp_from_float(time, typestore)
 
+  eye = np.eye(6, dtype=np.float64).reshape((36, ))
   return ns, msg_helpers.with_covariance(typestore, 'pose',
     msg_helpers.header(typestore, 'world', stamp),
-    np.zeros((36,), dtype=np.float64),
+    eye * 0.05,
     typestore.types['geometry_msgs/msg/Pose'](
       position = msg_helpers.point(typestore, sample['pos']),
       orientation = msg_helpers.quaternion(typestore, quat_from_fwd_up(sample['dir'], sample['up']))
@@ -62,9 +63,11 @@ import numpy as np
 def twist_wheelspeed(typestore: Typestore, time, sample):
   ns, stamp = msg_helpers.stamp_from_float(time, typestore)
 
+  eye = np.eye(6, dtype=np.float64).reshape((36, ))
+
   return ns, msg_helpers.with_covariance(typestore, 'twist',
     msg_helpers.header(typestore, 'vehicle', stamp),
-    np.zeros((36,), dtype=np.float64),
+    eye * 0.1,
     typestore.types['geometry_msgs/msg/Twist'](
       linear = msg_helpers.vector3(typestore, [sample['wheelspeed'], 0, 0]),
       angular = msg_helpers.vector3(typestore, [0, 0, 0])

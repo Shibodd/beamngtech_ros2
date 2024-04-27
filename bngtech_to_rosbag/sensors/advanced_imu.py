@@ -13,6 +13,8 @@ class AdvancedIMUSensor:
   def parse_sample(self, sample):
     ns, stamp = msg_helpers.stamp_from_float(sample['time'], self.typestore)
 
+    eye = np.eye(3, dtype=np.float64).reshape((9, ))
+
     return ns, self.typestore.types['sensor_msgs/msg/Imu'](
       header = msg_helpers.header(self.typestore, 'imu_link', stamp),
       orientation = msg_helpers.quaternion(self.typestore,
@@ -20,9 +22,9 @@ class AdvancedIMUSensor:
       ),
       angular_velocity = msg_helpers.vector3(self.typestore, sample['angVel']),
       linear_acceleration = msg_helpers.vector3(self.typestore, sample['accRaw']),
-      orientation_covariance = np.zeros((9, ), dtype=np.float64),
-      angular_velocity_covariance = np.zeros((9, ), dtype=np.float64),
-      linear_acceleration_covariance = np.zeros((9, ), dtype=np.float64)
+      orientation_covariance = eye * 0.1,
+      angular_velocity_covariance = eye * 0.1,
+      linear_acceleration_covariance = eye * 0.1
     )
 
   def extract_pose(self, msgs):
