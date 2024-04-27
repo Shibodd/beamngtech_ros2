@@ -8,14 +8,26 @@ class ClassicSensors:
     self.sensors = sensors
     self.timer_name = timer_name
     self.typestore = typestore
+    self.last_timestamp = {}
 
   def poll_msgs(self):
     self.vehicle.sensors.poll()
     time = self.vehicle.sensors[self.timer_name]['time']
     return {
-      k: [ npp[1](self.typestore, time, self.vehicle.sensors[npp[0]]) ]
+      k: self._time_stab_poll(time, k, npp[0], npp[1], npp[2])
       for k, npp in self.sensors.items()
     }
+  
+  def _time_stab_poll(self, time, sensor_name, bng_sensor_name, parser, min_interval):
+    poll = sensor_name not in self.last_timestamp
+    if not poll:
+      poll = time - self.last_timestamp[sensor_name] >= min_interval
+
+    if poll:
+      self.last_timestamp[sensor_name] = time
+      return [ parser(self.typestore, time, self.vehicle.sensors[bng_sensor_name]) ]
+    return []
+
 
 def odometry_pose(typestore: Typestore, time, sample):
   ns, stamp = msg_helpers.stamp_from_float(time, typestore)
