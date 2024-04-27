@@ -23,3 +23,14 @@ def vector3(typestore, vec):
 
 def point(typestore, pt):
   return typestore.types['geometry_msgs/msg/Point'](*pt)
+
+def with_covariance(typestore, member, header, covariance, msg):
+  msg_type = msg.__msgtype__
+
+  return typestore.types[msg_type + 'WithCovarianceStamped'](**{
+    'header': header,
+    member: typestore.types[msg_type + 'WithCovariance'](**{
+      member: msg,
+      'covariance': covariance
+    }),
+  })
