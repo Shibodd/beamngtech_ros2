@@ -9,6 +9,8 @@ import bag_writer
 import sensors.advanced_imu
 import sensors.classic_sensors 
 
+from sensors.msg_iface import sensors_to_msg
+
 print("Connecting")
 bng = beamngpy.BeamNGpy("192.168.1.2", 64256, quit_on_close=False)
 
@@ -42,16 +44,19 @@ try:
   imu = sensors.advanced_imu.AdvancedIMUSensor(typestore, 'imu',
     beamngpy.sensors.AdvancedIMU('accel1', bng, vehicle, physics_update_time=0.003)
   )
+  # gps = beamngpy.sensors.GPS('gps1', bng, vehicle, physics_update_time=0.2)
   classic = sensors.classic_sensors.ClassicSensors(typestore, vehicle, {
-      'pose': ('state', sensors.classic_sensors.odometry_pose, 0.1),
-      'tf': ('state', sensors.classic_sensors.vehicle_tf, 0.1),
-      'wheelspeed': ('electrics', sensors.classic_sensors.twist_wheelspeed, 0.01),
-    }, 'timer')
+    'pose': ('state', sensors.classic_sensors.odometry_pose, 0.1),
+    'pose_gt': ('state', sensors.classic_sensors.odometry_pose, 0),
+    'tf': ('state', sensors.classic_sensors.vehicle_tf, 0.1),
+    'wheelspeed': ('electrics', sensors.classic_sensors.twist_wheelspeed, 0.01),
+  }, 'timer')
 
   topics = {
-    'imu' : ('/bng/imu', ''),
+    'imu': ('/bng/imu', ''),
     'imu_pose': ('/bng/imu/pose', ''),
-    'pose' : ('/bng/pose', ''),
+    'pose': ('/bng/pose', ''),
+    'pose_gt': ('/bng/pose_gt', ''),
     'tf': ('/tf', ''),
     'wheelspeed': ('/bng/wheelspeed', '')
   }
@@ -74,11 +79,14 @@ try:
 
   with bag_writer.BagWriter("output.bag", topics, typestore, error_handler) as writer:
     while not should_quit:
-      writer.add_msgs(classic.poll_msgs())
-      writer.add_msgs(imu.poll_msgs())
+      classic_data = classic.poll_data()
+      imu_data = imu.poll_data()
+
+      writer.add_msgs(sensors_to_msg(typestore, classic_data))
+      writer.add_msgs(sensors_to_msg(typestore, imu_data))
 
     if writer_err:
-      raise Exception(writer_err)
+      raise writer_err
 finally:
   imu.IMU.remove()
   bng.close()

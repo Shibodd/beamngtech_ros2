@@ -31,6 +31,6 @@ def with_covariance(typestore, member, header, covariance, msg):
     'header': header,
     member: typestore.types[msg_type + 'WithCovariance'](**{
       member: msg,
-      'covariance': covariance
+      'covariance': covariance.flatten()
     }),
   })
