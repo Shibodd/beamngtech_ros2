@@ -19,7 +19,7 @@ class ClassicSensors:
       k: self._time_stab_poll(time, k, npp[0], npp[1], npp[2])
       for k, npp in self.sensors.items()
     }
-  
+
   def _time_stab_poll(self, time, sensor_name, bng_sensor_name, parser, min_interval):
     poll = sensor_name not in self.last_timestamp
     if not poll:
@@ -33,7 +33,7 @@ class ClassicSensors:
 def odometry_pose(time, sample):
   return msg_iface.PoseData(
     time = time,
-    frame = 'imu_link',
+    frame = 'track',
     position = msg_iface.Vector3Covariance3Pair.ground_truth(sample['pos']),
     orientation = msg_iface.Vector4Covariance3Pair.ground_truth(geometry_helpers.quat_from_fwd_up(sample['dir'], sample['up']))
   )

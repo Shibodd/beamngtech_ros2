@@ -10,13 +10,13 @@ class BagWriter:
     self.idle = None
     self.error_handler = error_handler
 
-  def add_msgs(self, sensor_data):
-    self.msg_queue.put(sensor_data)
+  def add_data(self, sensor_data):
+    self.queue.put(sensor_data)
 
   def start(self):
     del self.idle
     self.stop_requested = False
-    self.msg_queue = queue.Queue()
+    self.queue = queue.Queue()
     self.thread = threading.Thread(target=self._work)
     self.connections = {}
     self.thread.start()
@@ -37,24 +37,27 @@ class BagWriter:
             if self.stop_requested:
               return
             try:
-              sensor_data = self.msg_queue.get(timeout=0.5)
+              sensor_data = self.queue.get(timeout=0.5)
               break
             except queue.Empty:
               pass
-          for sensor_name, msgs in sensor_data.items():
-            self._write_msgs(sensor_name, msgs)
+          for sensor_name, data in sensor_data.items():
+            self._write_data(sensor_name, data)
     except Exception as e:
       self.error_handler(e)
 
-  def _get_conn(self, sensor_name, msgs):
+  def _get_conn(self, sensor_name, msg_type):
     if not sensor_name in self.connections:
-      self.connections[sensor_name] = self.writer.add_connection(self.sensor_topics[sensor_name][0], msgs[0][1].__msgtype__, typestore=self.typestore, offered_qos_profiles=self.sensor_topics[sensor_name][1])
+      self.connections[sensor_name] = self.writer.add_connection(self.sensor_topics[sensor_name][0], msg_type, typestore=self.typestore, offered_qos_profiles=self.sensor_topics[sensor_name][1])
     return self.connections[sensor_name]
 
-  def _write_msgs(self, sensor_name, msgs):
-    if not msgs:
+  def _write_data(self, sensor_name, data):
+    if not data:
       return
-    conn = self._get_conn(sensor_name, msgs)
-    for ns, msg in msgs:
-      print(ns / 10**9, msg.__msgtype__)
+    
+    for sample in data:
+      ns, msg = sample.to_msg(self.typestore)
+      print(sample.time, msg.__msgtype__)
+
+      conn = self._get_conn(sensor_name, msg.__msgtype__)
       self.writer.write(conn, ns, self.typestore.serialize_cdr(msg, msg.__msgtype__))

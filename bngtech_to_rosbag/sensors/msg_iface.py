@@ -30,7 +30,6 @@ class Vector3Covariance3Pair:
   data: np.ndarray[np.float64]
   covariance: np.ndarray[np.float64]
 
-print(Vector3Covariance3Pair)
 @dataclass
 @vec_cov_pair(4, 3)
 class Vector4Covariance3Pair:
@@ -57,6 +56,11 @@ class ImuData:
       angular_velocity_covariance = self.angular_velocity.covariance.flatten(),
       linear_acceleration_covariance = self.linear_acceleration.covariance.flatten()
     )
+  
+  def apply_tf(self, tf):
+    self.angular_velocity = tf.apply_to_rpy(self.angular_velocity)
+    self.linear_acceleration = tf.apply_to_vector(self.linear_acceleration)
+    self.orientation = tf.apply_to_quaternion(self.orientation)
 
 @dataclass
 class PoseData:
@@ -76,6 +80,10 @@ class PoseData:
         orientation = msg_helpers.quaternion(typestore, self.orientation.data)
       )
     )
+  
+  def apply_tf(self, tf):
+    self.position = tf.apply_to_position(self.position)
+    self.orientation = tf.apply_to_quaternion(self.orientation)
   
 @dataclass
 class TransformData:
@@ -101,6 +109,10 @@ class TransformData:
       ]
     )
   
+  def apply_tf(self, tf):
+    self.translation = tf.apply_to_position(self.translation.data)
+    self.rotation = tf.apply_to_quat(self.rotation.data)
+  
 @dataclass
 class TwistData:
   time: float
@@ -119,6 +131,10 @@ class TwistData:
         angular = msg_helpers.vector3(typestore, self.angular.data)
       )
     )
+  
+  def apply_tf(self, tf):
+    self.linear = tf.apply_to_vector(self.linear)
+    self.angular = tf.apply_to_rpy(self.angular)
   
 def sensors_to_msg(typestore, sensors):
   return { k: [x.to_msg(typestore) for x in data] for k, data in sensors.items() }
