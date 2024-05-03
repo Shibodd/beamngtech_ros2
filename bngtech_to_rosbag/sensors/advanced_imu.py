@@ -15,7 +15,7 @@ class AdvancedIMUSensor:
       frame = 'imu_link',
       orientation = msg_iface.Vector4Covariance3Pair.ground_truth(geometry_helpers.quat_from_axes(sample['dirX'], sample['dirY'], sample['dirZ'])),
       angular_velocity = msg_iface.Vector3Covariance3Pair.ground_truth(sample['angVel']),
-      linear_acceleration = msg_iface.Vector3Covariance3Pair.ground_truth(sample['accRaw'])
+      linear_acceleration = msg_iface.Vector3Covariance3Pair.ground_truth(sample['accSmooth'])
     )
 
   def poll_data(self):

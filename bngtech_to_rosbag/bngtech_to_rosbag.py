@@ -8,11 +8,16 @@ import bag_writer
 
 import sensors.advanced_imu
 import sensors.classic_sensors 
+import sensors.msg_iface as msg_iface
+import transforms
 
-from sensors.msg_iface import sensors_to_msg
+from qos import TRANSIENT_LOCAL_QOS
+
 
 print("Connecting")
-bng = beamngpy.BeamNGpy("192.168.1.2", 64256, quit_on_close=False)
+TRANSFORM = True
+MANUAL = True
+bng = beamngpy.BeamNGpy("10.5.5.10", 64256, quit_on_close=False)
 
 try:
   bng.open(launch=False)
@@ -28,18 +33,21 @@ try:
     scenario.add_vehicle(vehicle, pos=(-717.121, 101, 118.675), rot_quat=(0, 0, 0.3826834, 0.9238795))
     scenario.make(bng)
 
-    bng.settings.set_deterministic(200)
+    if not MANUAL:
+      bng.settings.set_deterministic(200)
 
     bng.scenario.load(scenario)
-    bng.ui.hide_hud()
+
+    if not MANUAL:
+      bng.ui.hide_hud()
     bng.scenario.start()
 
-    vehicle.ai.set_mode('span')
+    if not MANUAL:
+      vehicle.ai.set_mode('span')
   
   typestore = get_typestore(Stores.ROS2_HUMBLE)
   vehicle.sensors.attach('electrics', beamngpy.sensors.Electrics())
   vehicle.sensors.attach('timer', beamngpy.sensors.Timer())
-  
   
   imu = sensors.advanced_imu.AdvancedIMUSensor(typestore, 'imu',
     beamngpy.sensors.AdvancedIMU('accel1', bng, vehicle, physics_update_time=0.003)
@@ -48,17 +56,17 @@ try:
   classic = sensors.classic_sensors.ClassicSensors(typestore, vehicle, {
     'pose': ('state', sensors.classic_sensors.odometry_pose, 0.1),
     'pose_gt': ('state', sensors.classic_sensors.odometry_pose, 0),
-    'tf': ('state', sensors.classic_sensors.vehicle_tf, 0.1),
+    'tf_gt': ('state', sensors.classic_sensors.vehicle_tf, 0),
     'wheelspeed': ('electrics', sensors.classic_sensors.twist_wheelspeed, 0.01),
   }, 'timer')
 
   topics = {
-    'imu': ('/bng/imu', ''),
-    'imu_pose': ('/bng/imu/pose', ''),
+    'pose_gt': ('/bng/gt/pose', ''),
+    'tf_gt': ('/bng/gt/tf', ''),
     'pose': ('/bng/pose', ''),
-    'pose_gt': ('/bng/pose_gt', ''),
-    'tf': ('/tf', ''),
-    'wheelspeed': ('/bng/wheelspeed', '')
+    'wheelspeed': ('/bng/wheelspeed', ''),
+    'imu': ('/bng/imu', ''),
+    'tf_static': ('/tf_static', TRANSIENT_LOCAL_QOS)
   }
 
   print("Running - Press CTRL+C to stop.")
@@ -77,14 +85,56 @@ try:
 
   signal.signal(signal.SIGINT, handle_sigint)
 
+  ORIENTATION_TF = transforms.BngOrientationTransform()
+  track_tf = None
+
+  start_t = None
+
   with bag_writer.BagWriter("output.bag", topics, typestore, error_handler) as writer:
     while not should_quit:
-      classic_data = classic.poll_data()
-      imu_data = imu.poll_data()
+      data = {}
+      data.update(classic.poll_data())
+      data.update(imu.poll_data())
 
-      writer.add_msgs(sensors_to_msg(typestore, classic_data))
-      writer.add_msgs(sensors_to_msg(typestore, imu_data))
+      if start_t is None:
+        time_k = next((k for k,v in data.items() if len(v) > 0), None)
+        if time_k != None:
+          start_t = data[time_k][-1].time
+      
+      for v in data.values():
+        for x in v:
+          x.time = x.time - start_t
 
+      for k in ['pose_gt', 'tf_gt', 'pose', 'imu']:
+        for v in data[k]:
+          v.apply_tf(ORIENTATION_TF)
+
+      for v in data['imu']:
+        v.linear_acceleration.data[1] = -v.linear_acceleration.data[1]
+
+      if TRANSFORM:
+        if track_tf is None and len(data['pose_gt']) > 0:
+          pose = data['pose_gt'][-1]
+          pose: msg_iface.PoseData
+          track_tf = transforms.MapToTrackTransform(pose.position.data, pose.orientation.data)
+          data['tf_static'] = data.get('tf_static', []) + [track_tf.tf_data]
+
+        if track_tf is not None:
+          for k in ['pose_gt', 'tf_gt', 'pose']:
+            for v in data[k]:
+              v.apply_tf(track_tf)
+
+      for v in data['pose']:
+        v.position.add_variance(0.1)
+        v.orientation.add_variance(0.1)
+      
+      for v in data['imu']:
+        v.orientation.add_variance(0.1)
+        v.angular_velocity.add_variance(0.1)
+        v.linear_acceleration.add_variance(0.1)
+        
+      if not TRANSFORM or track_tf is not None:
+        writer.add_data(data)
     if writer_err:
       raise writer_err
 finally:

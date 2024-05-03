@@ -11,15 +11,19 @@ def vec_cov_pair(n, m):
         data = np.array(data, dtype=np.float64)
 
       return cls(
-        data = data.reshape((n, 1)),
+        data = data.reshape((n, )),
         covariance = np.zeros((m, m), dtype=np.float64)
       )
+  
+    def add_variance(obj, sigma):
+      obj.covariance += np.eye(m) * sigma
     
     def post_init(obj):
-      assert(obj.data.size == n)
-      assert(obj.covariance.size == m*m)
+      assert(obj.data.shape == (n,))
+      assert(obj.covariance.shape == (m,m))
 
     cls.ground_truth = ground_truth
+    cls.add_variance = add_variance
     cls.__post_init__ = post_init
     return cls
   return decorator
@@ -58,9 +62,9 @@ class ImuData:
     )
   
   def apply_tf(self, tf):
-    self.angular_velocity = tf.apply_to_rpy(self.angular_velocity)
-    self.linear_acceleration = tf.apply_to_vector(self.linear_acceleration)
-    self.orientation = tf.apply_to_quaternion(self.orientation)
+    # self.angular_velocity.data = tf.transform_rpy(self.angular_velocity.data)
+    self.linear_acceleration.data = tf.transform_vector(self.linear_acceleration.data)
+    self.orientation.data = tf.transform_orientation(self.orientation.data)
 
 @dataclass
 class PoseData:
@@ -82,8 +86,8 @@ class PoseData:
     )
   
   def apply_tf(self, tf):
-    self.position = tf.apply_to_position(self.position)
-    self.orientation = tf.apply_to_quaternion(self.orientation)
+    self.position.data = tf.transform_position(self.position.data)
+    self.orientation.data = tf.transform_orientation(self.orientation.data)
   
 @dataclass
 class TransformData:
@@ -110,8 +114,8 @@ class TransformData:
     )
   
   def apply_tf(self, tf):
-    self.translation = tf.apply_to_position(self.translation.data)
-    self.rotation = tf.apply_to_quat(self.rotation.data)
+    self.translation = tf.transform_position(self.translation)
+    self.rotation = tf.transform_orientation(self.rotation)
   
 @dataclass
 class TwistData:
@@ -133,8 +137,8 @@ class TwistData:
     )
   
   def apply_tf(self, tf):
-    self.linear = tf.apply_to_vector(self.linear)
-    self.angular = tf.apply_to_rpy(self.angular)
+    self.linear.data = tf.transform_vector(self.linear.data)
+    self.angular.data = tf.transform_rpy(self.angular.data)
   
 def sensors_to_msg(typestore, sensors):
   return { k: [x.to_msg(typestore) for x in data] for k, data in sensors.items() }
