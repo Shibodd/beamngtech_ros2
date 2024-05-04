@@ -19,13 +19,12 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
       ('ip', '10.5.5.10'),
       ('port', 64256),
       ('launch', False),
-      ('level', 'west_coast_usa'),
+      ('level', 'smallgrid'),
       ('vehicle.model', 'etk800'),
-      ('vehicle.position', rclpy.parameter.array.array('d', [-717.121, 101, 118.675])),
-      ('vehicle.orientation', rclpy.parameter.array.array('d', [0, 0, 0.3826834, 0.9238795])),
+      ('vehicle.position', rclpy.parameter.array.array('d', [0,0,0])),
+      ('vehicle.orientation', rclpy.parameter.array.array('d', [0,0,0,1])),
       ('ai_span', False),
-      ('deterministic_hz', -1),
-      ('publish_sim_time', True)
+      ('deterministic_hz', -1)
     ])
 
     self.declare_parameters('bngtech.sensors', [
@@ -40,7 +39,6 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
   def init(self):
     self._init_sim()
     self._init_sensors()
-    # self.time_pub = self.create_publisher(rosgraph_msgs.msg.Clock, '/clock', 10)
     self.get_logger().info("Initialized!")
 
   def _init_sim(self):
@@ -58,11 +56,9 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
     else:
       self.get_logger().info("Setting up the scenario...")
 
-      # self.scenario = beamngpy.Scenario(params['level'].value, 'bngtech_bridge')
-      self.scenario = beamngpy.Scenario('smallgrid', 'bngtech_bridge')
+      self.scenario = beamngpy.Scenario(params['level'].value, 'bngtech_bridge')
       self.vehicle = beamngpy.Vehicle(self.EGO_VEHICLE_ID, model=params['vehicle.model'].value)
-      #self.scenario.add_vehicle(self.vehicle, pos=params['vehicle.position'].value, rot_quat=params['vehicle.orientation'].value)
-      self.scenario.add_vehicle(self.vehicle)
+      self.scenario.add_vehicle(self.vehicle, pos=params['vehicle.position'].value, rot_quat=params['vehicle.orientation'].value, cling=True)
       self.scenario.make(self.bng)
 
       if params['deterministic_hz'].value > 0:
@@ -98,6 +94,7 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
       'tf': self.create_publisher(tf2_msgs.msg.TFMessage, params['tf.topic'].value, 10),
       'gps0': self.create_publisher(sensor_msgs.msg.NavSatFix, params['gps0.topic'].value, 10)
     }
+    self.output_parsers = { k: parsers.get_message_parser(k) for k in self.output_publishers.keys() }
 
   def _poll_automated_sensors(self):
     ans = {}
@@ -119,8 +116,7 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
     data.update(self._poll_classic_sensors())
 
     for output_name, pub in self.output_publishers.items():
-      parser = parsers.get_message_parser(output_name)
-      for msg in parser(data):
+      for msg in self.output_parsers[output_name](data):
         pub.publish(msg)
 
   def deinit(self):
