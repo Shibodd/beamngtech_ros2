@@ -15,43 +15,12 @@ import sensor_msgs.msg
 FACTORY_MAP = {}
 
 
-@factory('car_pose', FACTORY_MAP)
-class CarPoseOutput:
+@factory('tf', FACTORY_MAP)
+class TFOutput:
   def __init__(self, node: rclpy.node.Node, prefix):
     params = ParameterParser(node, prefix)
 
-    self.pub = node.create_publisher(
-      geometry_msgs.msg.PoseWithCovarianceStamped,
-      params.expected('topic', ParameterType.PARAMETER_STRING),
-      10
-    )
-    self.frame_id = params.optional('frame_id', 'map')
-    self.covariance = np.array(params.optional('covariance', rclpy.parameter.array.array('d', [0.0]*36)), dtype=np.float64)
-
-  def tick(self, data):
-    state = data['state']
-    position = np.array(state['pos']).reshape((3,))
-    orientation = geometry_helpers.quat_from_fwd_up(state['dir'], state['up'])
-
-    self.pub.publish(
-      geometry_msgs.msg.PoseWithCovarianceStamped(
-        header = msg_helpers.header(data['timer']['time'], self.frame_id),
-        pose = geometry_msgs.msg.PoseWithCovariance(
-          pose = geometry_msgs.msg.Pose(
-            position = msg_helpers.point(position),
-            orientation = msg_helpers.quaternion(orientation)
-          ),
-          covariance = self.covariance
-        )
-      )
-    )
-
-
-@factory('car_tf', FACTORY_MAP)
-class CarTFOutput:
-  def __init__(self, node: rclpy.node.Node, prefix):
-    params = ParameterParser(node, prefix)
-
+    self.source = params.expected('source', ParameterType.PARAMETER_STRING)
     self.pub = node.create_publisher(
       tf2_msgs.msg.TFMessage,
       params.expected('topic', ParameterType.PARAMETER_STRING),
@@ -61,26 +30,22 @@ class CarTFOutput:
     self.child_frame_id = params.optional('child_frame_id', 'imu_link')
 
   def tick(self, data):
-    state = data['state']
-    position = np.array(state['pos'], dtype=np.float64).reshape((3,))
-    orientation = geometry_helpers.quat_from_fwd_up(state['dir'], state['up'])
-
-    self.pub.publish(
-      tf2_msgs.msg.TFMessage(
-        transforms = [
-          geometry_msgs.msg.TransformStamped(
-            header = msg_helpers.header(data['timer']['time'], self.frame_id),
-            child_frame_id = self.child_frame_id,
-            transform = geometry_msgs.msg.Transform(
-              translation = msg_helpers.vector3(position),
-              rotation = msg_helpers.quaternion(orientation)
+    for sample in data[self.source]:
+      self.pub.publish(
+        tf2_msgs.msg.TFMessage(
+          transforms = [
+            geometry_msgs.msg.TransformStamped(
+              header = msg_helpers.header(sample.time, self.frame_id),
+              child_frame_id = self.child_frame_id,
+              transform = geometry_msgs.msg.Transform(
+                translation = msg_helpers.vector3(sample.position),
+                rotation = msg_helpers.quaternion(sample.orientation)
+              )
             )
-          )
-        ]
+          ]
+        )
       )
-    )
   
-
 @factory('wheelspeed', FACTORY_MAP)
 class WheelspeedOutput:
   def __init__(self, node: rclpy.node.Node, prefix):
@@ -112,8 +77,8 @@ class WheelspeedOutput:
     )
 
 
-@factory('imu_data', FACTORY_MAP)
-class IMUDataOutput:
+@factory('imu', FACTORY_MAP)
+class IMUOutput:
   def __init__(self, node: rclpy.node.Node, prefix):
     params = ParameterParser(node, prefix)
     
@@ -146,8 +111,8 @@ class IMUDataOutput:
       )
 
 
-@factory('imu_pose', FACTORY_MAP)
-class IMUPoseOutput:
+@factory('pose', FACTORY_MAP)
+class PoseOutput:
   def __init__(self, node, prefix):
     params = ParameterParser(node, prefix)
 
@@ -162,15 +127,13 @@ class IMUPoseOutput:
 
   def tick(self, data):
     for sample in data[self.source]:
-      orientation = geometry_helpers.quat_from_fwd_up(sample['dirX'], sample['dirZ'])
-
       self.pub.publish(
         geometry_msgs.msg.PoseWithCovarianceStamped(
-          header = msg_helpers.header(sample['time'], self.frame_id),
+          header = msg_helpers.header(sample.time, self.frame_id),
           pose = geometry_msgs.msg.PoseWithCovariance(
             pose = geometry_msgs.msg.Pose(
-              position = msg_helpers.point(sample['pos']),
-              orientation = msg_helpers.quaternion(orientation),
+              position = msg_helpers.point(sample.position),
+              orientation = msg_helpers.quaternion(sample.orientation),
             ),
             covariance = self.covariance
           )

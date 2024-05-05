@@ -29,6 +29,8 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
     self._init_classic_sensors()
     self.automated_sensors = factories.parse_list(self, 'automated_sensors', factories.automated_sensors.FACTORY_MAP)
     self.outputs = factories.parse_list(self, 'outputs', factories.outputs.FACTORY_MAP)
+    self.preprocessors = factories.parse_list(self, 'preprocessors', factories.preprocessors.FACTORY_MAP)
+
     self.get_logger().info("Setup complete!")
 
     self.create_timer(0, self.tick)
@@ -111,6 +113,9 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
     data = {}
     data.update(self._poll_automated_sensors())
     data.update(self._poll_classic_sensors())
+
+    for preprocessor in self.preprocessors:
+      preprocessor.tick(data)
 
     for output in self.outputs:
       output.tick(data)

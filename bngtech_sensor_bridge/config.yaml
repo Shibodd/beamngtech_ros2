@@ -36,9 +36,25 @@
         ref_lat: 0.0
         ref_lon: 0.0
 
+    preprocessors:
+      _0:
+        type: state_to_pose
+        output: car_pose
+
+      _1:
+        type: imu_to_pose
+        source: imu
+        output: imu_pose
+
+      _2:
+        type: map_to_track
+        source: car_pose
+        apply_to: [ 'imu:imu', 'pose:car_pose', 'pose:imu_pose' ]
+
     outputs:
       _0:
-        type: car_pose
+        type: pose
+        source: car_pose
         topic: /bng/pose
         frame_id: map
         covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -49,7 +65,8 @@
                     0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
       
       _1:
-        type: car_tf
+        type: tf
+        source: car_pose
         topic: /tf
         frame_id: map
         child_frame_id: imu_link
@@ -61,7 +78,7 @@
         variance: 0.1
       
       _3:
-        type: imu_data
+        type: imu
         source: imu
         topic: /bng/imu/data
         frame_id: imu_link
@@ -76,8 +93,8 @@
                                         0.0, 0.0, 0.1]
 
       _4:
-        type: imu_pose
-        source: imu
+        type: pose
+        source: imu_pose
         topic: /bng/imu/pose
         frame_id: map
         covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
