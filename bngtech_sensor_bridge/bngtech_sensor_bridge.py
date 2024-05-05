@@ -1,21 +1,47 @@
 import rclpy.node
+import factories
 import beamngpy
 import beamngpy.sensors
 import rclpy.parameter
-import geometry_msgs.msg
-
-import tf2_msgs.msg
-import sensor_msgs.msg
-
-import parsers
+import rcl_interfaces.msg
 
 class BeamNGTechSensorBridgeNode(rclpy.node.Node):
   EGO_VEHICLE_ID = 'ego_vehicle'
+  CLASSIC_SENSOR_FACTORY_MAP = {
+    'electrics': beamngpy.sensors.Electrics,
+    'state': beamngpy.sensors.State,
+    'timer': beamngpy.sensors.Timer
+  }
 
   def __init__(self):
-    super().__init__("bngtech_bridge")
+    super().__init__("bngtech_sensor_bridge")
 
-    self.declare_parameters('bngtech.sim', [
+  def __enter__(self):
+    self.init()
+    return self
+  
+  def __exit__(self, *_):
+    self.deinit()
+
+  def init(self):
+    self._init_sim()
+
+    self._init_classic_sensors()
+    self.automated_sensors = factories.parse_list(self, 'automated_sensors', factories.automated_sensors.FACTORY_MAP)
+    self.outputs = factories.parse_list(self, 'outputs', factories.outputs.FACTORY_MAP)
+    self.get_logger().info("Setup complete!")
+
+    self.create_timer(0, self.tick)
+
+  def deinit(self):
+    if hasattr(self, 'automated_sensors'):
+      for x in self.automated_sensors:
+        x.remove()
+    if hasattr(self, 'bng'):
+      self.bng.close()
+
+  def _init_sim(self):
+    self.declare_parameters('settings', [
       ('ip', '10.5.5.10'),
       ('port', 64256),
       ('launch', False),
@@ -26,23 +52,7 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
       ('ai_span', False),
       ('deterministic_hz', -1)
     ])
-
-    self.declare_parameters('bngtech.sensors', [
-      ('imu0.topic', '/bng/imu'),
-      ('imu0.update_time', 0.003),
-      ('pose.topic', '/bng/pose'),
-      ('tf.topic', '/tf'),
-      ('wheelspeed.topic', '/bng/wheelspeed'),
-      ('gps0.topic', '/bng/gps')
-    ])
-
-  def init(self):
-    self._init_sim()
-    self._init_sensors()
-    self.get_logger().info("Initialized!")
-
-  def _init_sim(self):
-    params = self.get_parameters_by_prefix('bngtech.sim')
+    params = self.get_parameters_by_prefix('settings')
 
     self.get_logger().info("Connecting to BeamNG...")
     self.bng = beamngpy.BeamNGpy(params['ip'].value, params['port'].value, quit_on_close=False)
@@ -71,39 +81,26 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
       if params['ai_span'].value:
         self.bng.ui.hide_hud()
 
+      self.get_logger().info("Starting scenario.")
+      
       self.bng.scenario.start()
       if params['ai_span'].value:
         self.vehicle.ai.set_mode('span')
 
-  def _init_sensors(self):
-    params = self.get_parameters_by_prefix('bngtech.sensors')
-
-    self.get_logger().info("Adding sensors.")
-    self.vehicle.sensors.attach('timer', beamngpy.sensors.Timer())
-    self.vehicle.sensors.attach('electrics', beamngpy.sensors.Electrics())
-    self.automated_sensors = {
-      'imu0': beamngpy.sensors.AdvancedIMU('imu0', self.bng, self.vehicle, physics_update_time=params['imu0.update_time'].value, is_using_gravity=True, dir=(0,-1,0), up=(1,0,0)),
-      'gps0': beamngpy.sensors.GPS('gps0', self.bng, self.vehicle)
-    }
-
-    self.output_publishers = {
-      'imu0.data': self.create_publisher(sensor_msgs.msg.Imu, f"{params['imu0.topic'].value}/data", 10),
-      'imu0.pose': self.create_publisher(geometry_msgs.msg.PoseStamped, f"{params['imu0.topic'].value}/pose", 10),
-      'wheelspeed': self.create_publisher(geometry_msgs.msg.TwistStamped, params['wheelspeed.topic'].value, 10),
-      'pose': self.create_publisher(geometry_msgs.msg.PoseStamped, params['pose.topic'].value, 10),
-      'tf': self.create_publisher(tf2_msgs.msg.TFMessage, params['tf.topic'].value, 10),
-      'gps0': self.create_publisher(sensor_msgs.msg.NavSatFix, params['gps0.topic'].value, 10)
-    }
-    self.output_parsers = { k: parsers.get_message_parser(k) for k in self.output_publishers.keys() }
+  def _init_classic_sensors(self):
+    for name in set(self.declare_parameter('classic_sensors', descriptor=rcl_interfaces.msg.ParameterDescriptor(type=rclpy.parameter.ParameterType.PARAMETER_STRING_ARRAY)).value):
+      if name in self.vehicle.sensors._sensors:
+        continue
+      self.vehicle.sensors.attach(name, self.CLASSIC_SENSOR_FACTORY_MAP[name]())
 
   def _poll_automated_sensors(self):
     ans = {}
-    for k, v in self.automated_sensors.items():
-      data = v.poll()
+    for sensor in self.automated_sensors:
+      data = sensor.poll()
       if isinstance(data, dict):
-        ans[k] = data.values()
+        ans[sensor.name] = data.values()
       else:
-        ans[k] = []
+        ans[sensor.name] = []
     return ans
   
   def _poll_classic_sensors(self):
@@ -115,34 +112,11 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
     data.update(self._poll_automated_sensors())
     data.update(self._poll_classic_sensors())
 
-    for output_name, pub in self.output_publishers.items():
-      for msg in self.output_parsers[output_name](data):
-        pub.publish(msg)
+    for output in self.outputs:
+      output.tick(data)
 
-  def deinit(self):
-    for x in getattr(self, 'automated_sensors', {}).values():
-      x.remove()
-    
-    if hasattr(self, 'bng'):
-      self.bng.close()
-
-
-import signal
-
-should_quit = False
-def handle_sigint(_, __):
-  global should_quit
-  should_quit = True
-
-signal.signal(signal.SIGINT, handle_sigint)
-
-try:
+if __name__ == '__main__':
   rclpy.init()
-  node = BeamNGTechSensorBridgeNode()
-  node.init()
-  while not should_quit:
-    node.tick()
-finally:
-  node.deinit()
-  if node.context.ok():
-    rclpy.shutdown()
+  with BeamNGTechSensorBridgeNode() as node:
+    rclpy.spin(node)
+  rclpy.shutdown()

@@ -1,0 +1,97 @@
+/bngtech_sensor_bridge:
+  ros__parameters:
+    settings:
+      ip: 10.5.5.10
+      port: 64256
+      launch: False
+      level: smallgrid
+      vehicle:
+        model: etk800
+        position: [0.0, 0.0, 0.0]
+        orientation: [0.0, 0.0, 0.0, 1.0]
+      ai_span: false
+      deterministic_hz: -1
+
+    classic_sensors: [ 'state', 'electrics', 'timer' ]
+
+    automated_sensors:
+      _0:
+        name: imu
+        type: imu
+        is_using_gravity: false
+        pos: [0.0, 0.0, 1.7]
+        dir: [0.0, -1.0, 0.0]
+        up: [1.0, 0.0, 0.0]
+        physics_update_time: 0.003
+        # accel_frequency_cutoff: 
+        # gyro_frequency_cutoff:
+        # gyro_window_width: 
+        # accel_window_width: 
+
+      _1:
+        name: gps
+        type: gps
+        physics_update_time: 0.01
+        pos: [0.0, 0.0, 1.7]
+        ref_lat: 0.0
+        ref_lon: 0.0
+
+    outputs:
+      _0:
+        type: car_pose
+        topic: /bng/pose
+        frame_id: map
+        covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+      
+      _1:
+        type: car_tf
+        topic: /tf
+        frame_id: map
+        child_frame_id: imu_link
+
+      _2:
+        type: wheelspeed
+        topic: /bng/wheelspeed
+        frame_id: imu_link
+        variance: 0.1
+      
+      _3:
+        type: imu_data
+        source: imu
+        topic: /bng/imu/data
+        frame_id: imu_link
+        orientation_covariance: [0.1, 0.0, 0.0,
+                                0.0, 0.1, 0.0,
+                                0.0, 0.0, 0.1]
+        angular_velocity_covariance: [0.1, 0.0, 0.0,
+                                      0.0, 0.1, 0.0,
+                                      0.0, 0.0, 0.1]
+        linear_acceleration_covariance: [0.1, 0.0, 0.0,
+                                        0.0, 0.1, 0.0,
+                                        0.0, 0.0, 0.1]
+
+      _4:
+        type: imu_pose
+        source: imu
+        topic: /bng/imu/pose
+        frame_id: map
+        covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                     0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                     0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                     0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+      _5:
+        type: gps
+        source: gps
+        topic: /bng/gps
+        frame_id: map
+        position_covariance: [0.1, 0.0, 0.0,
+                              0.0, 0.1, 0.0,
+                              0.0, 0.0, 0.1]
