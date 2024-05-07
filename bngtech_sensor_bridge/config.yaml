@@ -1,7 +1,7 @@
 /bngtech_sensor_bridge:
   ros__parameters:
     settings:
-      ip: 10.5.5.10
+      ip: 192.168.1.2
       port: 64256
       launch: False
       level: smallgrid
@@ -10,9 +10,22 @@
         position: [0.0, 0.0, 0.0]
         orientation: [0.0, 0.0, 0.0, 1.0]
       ai_span: false
-      deterministic_hz: -1
+      deterministic_hz: -1.0
 
-    classic_sensors: [ 'state', 'electrics', 'timer' ]
+    classic_sensors: [ 'timer', 'state', 'electrics' ]
+
+    transformers:
+      _0:
+        type: map_to_track
+        pose_source: state
+        apply_to: [
+          "position: state[].position",
+          "orientation: state[].orientation",
+          "vector: state[].velocity",
+          "position: imu[].position",
+          "orientation: imu[].orientation",
+        ]
+      
 
     automated_sensors:
       _0:
@@ -36,27 +49,12 @@
         ref_lat: 0.0
         ref_lon: 0.0
 
-    preprocessors:
-      _0:
-        type: state_to_pose
-        output: car_pose
-
-      _1:
-        type: imu_to_pose
-        source: imu
-        output: imu_pose
-
-      _2:
-        type: map_to_track
-        source: car_pose
-        apply_to: [ 'imu:imu', 'pose:car_pose', 'pose:imu_pose' ]
-
     outputs:
       _0:
         type: pose
-        source: car_pose
+        source: state
         topic: /bng/pose
-        frame_id: map
+        frame_id: track
         covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
@@ -66,13 +64,14 @@
       
       _1:
         type: tf
-        source: car_pose
+        source: state
         topic: /tf
-        frame_id: map
+        frame_id: track
         child_frame_id: imu_link
 
       _2:
         type: wheelspeed
+        source: electrics
         topic: /bng/wheelspeed
         frame_id: imu_link
         variance: 0.1
@@ -94,9 +93,9 @@
 
       _4:
         type: pose
-        source: imu_pose
+        source: imu
         topic: /bng/imu/pose
-        frame_id: map
+        frame_id: track
         covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                      0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
                      0.0, 0.0, 1.0, 0.0, 0.0, 0.0,

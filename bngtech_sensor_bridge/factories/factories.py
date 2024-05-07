@@ -1,4 +1,6 @@
 import itertools
+import rcl_interfaces.msg
+import rclpy.parameter
 
 def factory(type, map):
   def wrapper(fn):
@@ -19,3 +21,7 @@ def parse_list(node, list_prefix, type_map):
       return ans
     ans.append(type_map[output_type](node, elem_prefix))
   assert False
+
+def parse_simple_list(node, list_name, type_map):
+  names = list(node.declare_parameter(list_name, descriptor=rcl_interfaces.msg.ParameterDescriptor(type=rclpy.parameter.ParameterType.PARAMETER_STRING_ARRAY)).value)
+  return [type_map[name](node) for name in names]

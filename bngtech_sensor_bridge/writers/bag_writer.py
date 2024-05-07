@@ -21,11 +21,7 @@ class BagWriter:
     self.connections = {}
     self.thread.start()
 
-  def __enter__(self):
-    self.start()
-    return self
-
-  def __exit__(self, *args, **kwargs):
+  def stop(self, *args, **kwargs):
     self.stop_requested = True
     self.thread.join()
 
