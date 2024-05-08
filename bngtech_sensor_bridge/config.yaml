@@ -1,7 +1,7 @@
 /bngtech_sensor_bridge:
   ros__parameters:
     settings:
-      ip: 192.168.1.2
+      ip: 10.5.5.10
       port: 64256
       launch: False
       level: smallgrid
@@ -11,6 +11,9 @@
         orientation: [0.0, 0.0, 0.0, 1.0]
       ai_span: false
       deterministic_hz: -1.0
+    
+    bag_writer:
+      path: "output.bag"
 
     classic_sensors: [ 'timer', 'state', 'electrics' ]
 
@@ -18,6 +21,7 @@
       _0:
         type: map_to_track
         pose_source: state
+        tf_destination: track_tf
         apply_to: [
           "position: state[].position",
           "orientation: state[].orientation",
@@ -111,3 +115,11 @@
         position_covariance: [0.1, 0.0, 0.0,
                               0.0, 0.1, 0.0,
                               0.0, 0.0, 0.1]
+
+      _6:
+        type: tf
+        source: track_tf
+        topic: /tf_static
+        qos: transient_local
+        frame_id: map
+        child_frame_id: track

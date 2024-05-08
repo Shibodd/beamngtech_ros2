@@ -1,24 +1,19 @@
 import rclpy.node
+import factories.outputs
+import utils.qos
 
 class MessagePublisher:
-  def __init__(self, node: rclpy.node.Node):
+  def __init__(self, node: rclpy.node.Node, outputs: list[factories.outputs.OutputTopic]):
     self.node = node
     self.publishers = {}
+    for output in outputs:
+      self.publishers[output.topic] = self.node.create_publisher(
+        output.msg_type,
+        output.topic,
+        utils.qos.QOS_MAP[output.qos] if output.qos else 10
+      )
 
   def write(self, data):
     for topic, msgs in data.items():
-      if len(msgs) <= 0:
-        continue
-      
-      reg = self.publishers.get(topic, None)
-
-      if not reg:
-        typ = type(msgs[0][1])
-        pub = self.node.create_publisher(typ, topic, 10)
-        self.publishers[topic] = (typ, pub)
-      else:
-        typ, pub = reg
-
       for _, msg in msgs:
-        assert type(msg) == typ
-        pub.publish(msg)
+        self.publishers[topic].publish(msg)

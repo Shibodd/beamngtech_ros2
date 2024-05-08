@@ -17,6 +17,7 @@ class MapToTrackTransformer:
       return f"{prefix}.%s" if prefix else "%s"
 
     self.pose_source = params.expected('pose_source', ParameterType.PARAMETER_STRING)
+    self.tf_destination = params.expected('tf_destination', ParameterType.PARAMETER_STRING)
     self.in_fmt = parse_prefix_fmt('in_prefix')
     self.out_fmt = parse_prefix_fmt('out_prefix')
 
@@ -52,6 +53,13 @@ class MapToTrackTransformer:
         origin=pose['position'],
         orientation=pose['orientation'],
       )
+      workspace[self.tf_destination] = [{
+        'time': pose['time'],
+        'position': pose['position'],
+        'orientation': pose['orientation']
+      }]
+    else:
+      workspace[self.tf_destination] = []
 
     if self.transform is not None:
       for typ, src, dst in self.apply_to:

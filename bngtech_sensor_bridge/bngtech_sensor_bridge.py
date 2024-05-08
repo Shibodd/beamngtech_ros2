@@ -8,6 +8,7 @@ import utils.param_parser as param_parser
 import utils.dict_extend
 from utils.workspace import Workspace
 import writers
+import utils.qos
 
 class BeamNGTechSensorBridgeNode(rclpy.node.Node):
   EGO_VEHICLE_ID = 'ego_vehicle'
@@ -29,13 +30,19 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
     self.automated_sensors = factories.parse_list(self, 'automated_sensors', factories.automated_sensors.FACTORY_MAP)
     self.transformers = factories.parse_list(self, 'transformers', factories.transformers.FACTORY_MAP)
     self.outputs = factories.parse_list(self, 'outputs', factories.outputs.FACTORY_MAP)
-    self.writers = [ writers.MessagePublisher(self) ]
+
+    topics = list(itertools.chain.from_iterable(out.get_topics() for out in self.outputs))
+    self.writers = [ writers.MessagePublisher(self, topics), writers.BagWriter(self, topics) ]
 
     self.get_logger().info("Setup complete!")
 
     self.create_timer(0, self.tick)
 
   def deinit(self):
+    for writer in self.writers:
+      if hasattr(writer, 'close'):
+        writer.close()
+
     if hasattr(self, 'automated_sensors'):
       for x in self.automated_sensors:
         x.remove()

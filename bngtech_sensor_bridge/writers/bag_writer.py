@@ -1,59 +1,47 @@
-import queue
-import threading
 import rosbags.rosbag2 as rb2
+import rosbags.typesys
+
+import utils.qos
+import factories.outputs
+import itertools
+
+import rclpy.node
+import utils.param_parser
 
 class BagWriter:
-  def __init__(self, path: str, sensor_topics: dict, typestore, error_handler):
-    self.path = path
-    self.sensor_topics = sensor_topics
-    self.typestore = typestore
-    self.idle = None
-    self.error_handler = error_handler
+  typestore = rosbags.typesys.get_typestore(rosbags.typesys.Stores.ROS2_HUMBLE)
 
-  def add_data(self, sensor_data):
-    self.queue.put(sensor_data)
-
-  def start(self):
-    del self.idle
-    self.stop_requested = False
-    self.queue = queue.Queue()
-    self.thread = threading.Thread(target=self._work)
-    self.connections = {}
-    self.thread.start()
-
-  def stop(self, *args, **kwargs):
-    self.stop_requested = True
-    self.thread.join()
-
-  def _work(self):
-    try:
-      with rb2.Writer(self.path) as self.writer:
-        while not self.stop_requested:
-          while True:
-            if self.stop_requested:
-              return
-            try:
-              sensor_data = self.queue.get(timeout=0.5)
-              break
-            except queue.Empty:
-              pass
-          for sensor_name, data in sensor_data.items():
-            self._write_data(sensor_name, data)
-    except Exception as e:
-      self.error_handler(e)
-
-  def _get_conn(self, sensor_name, msg_type):
-    if not sensor_name in self.connections:
-      self.connections[sensor_name] = self.writer.add_connection(self.sensor_topics[sensor_name][0], msg_type, typestore=self.typestore, offered_qos_profiles=self.sensor_topics[sensor_name][1])
-    return self.connections[sensor_name]
-
-  def _write_data(self, sensor_name, data):
-    if not data:
-      return
+  def __init__(self, node: rclpy.node.Node, outputs: list[factories.outputs.OutputTopic]):
+    params = utils.param_parser.ParameterParser(node, 'bag_writer')
+    path = params.optional('path', None, utils.param_parser.ParameterType.PARAMETER_STRING)
     
-    for sample in data:
-      ns, msg = sample.to_msg(self.typestore)
-      print(sample.time, msg.__msgtype__)
+    if path is not None:
+      self.writer = rb2.Writer(path)
+      self.writer.open()
+      self.connections = {}
+      for output in outputs:
+        qos = utils.qos.qos_to_yaml(utils.qos.QOS_MAP[output.qos]) if output.qos else ''
+        msg_type = "/".join(
+          itertools.chain(
+            output.msg_type.__module__.split(".")[:-1], 
+            (output.msg_type.__name__, )
+          )
+        )
 
-      conn = self._get_conn(sensor_name, msg.__msgtype__)
-      self.writer.write(conn, ns, self.typestore.serialize_cdr(msg, msg.__msgtype__))
+        self.connections[output.topic] = self.writer.add_connection(
+          output.topic,
+          msg_type,
+          typestore=self.typestore,
+          offered_qos_profiles=qos
+        )
+
+  def write(self, data):
+    if hasattr(self, 'writer'):
+      for topic, msgs in data.items():
+        for t, msg in msgs:
+          conn = self.connections[topic]
+          self.writer.write(conn, int(t * 10**9), self.typestore.serialize_cdr(msg, conn.msgtype))
+
+  def close(self):
+    if hasattr(self, 'writer'):
+      self.writer.close()
