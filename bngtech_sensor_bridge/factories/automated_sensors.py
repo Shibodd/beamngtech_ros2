@@ -13,7 +13,7 @@ FACTORY_MAP = {}
 def bng_poll(sensor):
   data = sensor.poll()
   if isinstance(data, dict):
-    return data.values()
+    return list(data.values())
   return []
 
 @factory('gps', FACTORY_MAP)
@@ -86,3 +86,12 @@ class IMUSensor:
 
   def remove(self):
     self.sensor.remove()
+
+
+@factory('powertrain', FACTORY_MAP)
+class PowertrainSensor:
+  def __init__(self, node: rclpy.node.Node, prefix: str):
+    self.sensor = beamngpy.sensors.PowertrainSensor("powertrain", node.bng, node.vehicle)
+  
+  def poll(self, workspace: dict):
+    pass

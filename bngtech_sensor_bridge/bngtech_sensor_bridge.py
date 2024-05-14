@@ -77,7 +77,7 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
       )
       self.scenario.make(self.bng)
 
-      if det_hz := params.optional('deterministic_hz', -1.0) > 0:
+      if (det_hz := params.optional('deterministic_hz', -1.0)) > 0:
         self.get_logger().info("Setting deterministic mode.")
         self.bng.settings.set_deterministic(det_hz)
 
@@ -97,7 +97,9 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
   def tick(self):
     workspace = Workspace()
 
-    self.vehicle.sensors.poll()
+    if len(self.classic_sensors) > 0:
+      self.vehicle.sensors.poll()
+      
     for sensor in itertools.chain(self.classic_sensors, self.automated_sensors):
       sensor.poll(workspace)
 

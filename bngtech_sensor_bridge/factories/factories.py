@@ -23,5 +23,6 @@ def parse_list(node, list_prefix, type_map):
   assert False
 
 def parse_simple_list(node, list_name, type_map):
-  names = list(node.declare_parameter(list_name, descriptor=rcl_interfaces.msg.ParameterDescriptor(type=rclpy.parameter.ParameterType.PARAMETER_STRING_ARRAY)).value)
+  names = node.declare_parameter(list_name, descriptor=rcl_interfaces.msg.ParameterDescriptor(type=rclpy.parameter.ParameterType.PARAMETER_STRING_ARRAY)).value
+  names = list(names) if names is not None else []
   return [type_map[name](node) for name in names]

@@ -199,7 +199,7 @@ class GPSOutput:
             ),
             latitude = sample['latitude'],
             longitude = sample['longitude'],
-            altitude = math.nan,
+            altitude = 0.0,
             position_covariance_type = sensor_msgs.msg.NavSatFix.COVARIANCE_TYPE_KNOWN,
             position_covariance = self.position_covariance
           )

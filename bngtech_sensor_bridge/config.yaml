@@ -10,24 +10,28 @@
         position: [0.0, 0.0, 0.0]
         orientation: [0.0, 0.0, 0.0, 1.0]
       ai_span: false
-      deterministic_hz: -1.0
+      # deterministic_hz: 200
     
     bag_writer:
       path: "output.bag"
 
-    classic_sensors: [ 'timer', 'state', 'electrics' ]
+    # classic_sensors: [ 'timer', 'state', 'electrics' ]
+    classic_sensors: []
 
     transformers:
       _0:
+        type: copy
+        source: imu
+        destination: imu_track 
+
+      _1:
         type: map_to_track
-        pose_source: state
+        pose_source: imu
         tf_destination: track_tf
         apply_to: [
-          "position: state[].position",
-          "orientation: state[].orientation",
-          "vector: state[].velocity",
-          "position: imu[].position",
-          "orientation: imu[].orientation",
+          "position: imu_track[].position",
+          "orientation: imu_track[].orientation",
+          "vector: imu_track[].angular_velocity",
         ]
       
 
@@ -40,25 +44,25 @@
         dir: [0.0, -1.0, 0.0]
         up: [1.0, 0.0, 0.0]
         physics_update_time: 0.003
-        # accel_frequency_cutoff: 
+        # accel_frequency_cutoff:
         # gyro_frequency_cutoff:
-        # gyro_window_width: 
-        # accel_window_width: 
+        # gyro_window_width:
+        # accel_window_width:
 
       _1:
         name: gps
         type: gps
         physics_update_time: 0.01
         pos: [0.0, 0.0, 1.7]
-        ref_lat: 0.0
-        ref_lon: 0.0
+        ref_lat: 44.6398464
+        ref_lon: 10.9314048
 
     outputs:
       _0:
         type: pose
-        source: state
-        topic: /bng/pose
-        frame_id: track
+        source: imu
+        topic: /pose_gt
+        frame_id: map
         covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
@@ -67,23 +71,9 @@
                     0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
       
       _1:
-        type: tf
-        source: state
-        topic: /tf
-        frame_id: track
-        child_frame_id: imu_link
-
-      _2:
-        type: wheelspeed
-        source: electrics
-        topic: /bng/wheelspeed
-        frame_id: imu_link
-        variance: 0.1
-      
-      _3:
         type: imu
         source: imu
-        topic: /bng/imu/data
+        topic: /imu/data
         frame_id: imu_link
         orientation_covariance: [0.1, 0.0, 0.0,
                                 0.0, 0.1, 0.0,
@@ -95,31 +85,41 @@
                                         0.0, 0.1, 0.0,
                                         0.0, 0.0, 0.1]
 
-      _4:
-        type: pose
-        source: imu
-        topic: /bng/imu/pose
-        frame_id: track
-        covariance: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                     0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-                     0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-                     0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                     0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-                     0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-
-      _5:
+      _2:
         type: gps
         source: gps
-        topic: /bng/gps
-        frame_id: map
+        topic: /gps/fix
+        frame_id: imu_link
         position_covariance: [0.1, 0.0, 0.0,
                               0.0, 0.1, 0.0,
                               0.0, 0.0, 0.1]
 
-      _6:
+      _3:
         type: tf
         source: track_tf
         topic: /tf_static
         qos: transient_local
         frame_id: map
         child_frame_id: track
+
+      _4:
+        type: imu
+        source: imu
+        topic: /imu/world_data
+        frame_id: imu_link
+        orientation_covariance: [0.1, 0.0, 0.0,
+                                0.0, 0.1, 0.0,
+                                0.0, 0.0, 0.1]
+        angular_velocity_covariance: [0.1, 0.0, 0.0,
+                                      0.0, 0.1, 0.0,
+                                      0.0, 0.0, 0.1]
+        linear_acceleration_covariance: [0.1, 0.0, 0.0,
+                                        0.0, 0.1, 0.0,
+                                        0.0, 0.0, 0.1]
+
+      # _4:
+        #  type: tf
+        #  source: imu
+        #  topic: /tf
+        #  frame_id: track
+        #  child_frame_id: imu_link

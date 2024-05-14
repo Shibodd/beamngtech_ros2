@@ -65,5 +65,24 @@ class MapToTrackTransformer:
       for typ, src, dst in self.apply_to:
         workspace[dst] = self.APPLY_MAP[typ](self.transform, workspace[src])
     else:
-      for _, dst in self.apply_to:
+      for _, __, dst in self.apply_to:
         workspace[dst] = []
+
+@factory('copy', FACTORY_MAP)
+class CopyTransformer:
+  def __init__(self, node, prefix):
+    params = ParameterParser(node, prefix)
+    self.source = params.expected('source', ParameterType.PARAMETER_STRING)
+    self.destination = params.expected('destination', ParameterType.PARAMETER_STRING)
+
+  def tick(self, workspace):
+    workspace[self.destination] = workspace[self.source]
+
+@factory('test', FACTORY_MAP)
+class TestTransformer:
+  def __init__(self, node, prefix):
+    params = ParameterParser(node, prefix)
+  
+  def tick(self, workspace):
+    # workspace[]
+    pass
