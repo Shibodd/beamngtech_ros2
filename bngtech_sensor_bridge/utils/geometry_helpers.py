@@ -19,3 +19,6 @@ def quat_from_fwd_up(fwd, up):
   fwd = np.array(fwd, dtype=np.float64).reshape(3,)
   up = np.array(up, dtype=np.float64).reshape(3,)
   return quat_from_axes(fwd, np.cross(up, fwd), up)
+
+def quat_to_matrix(quat):
+  return scipy.spatial.transform.Rotation(quat).as_matrix()

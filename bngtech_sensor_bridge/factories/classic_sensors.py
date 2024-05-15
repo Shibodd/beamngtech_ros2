@@ -26,7 +26,7 @@ class StateSensor(ClassicSensorBase):
 
   def parse(self, workspace, sample):
     workspace[StateSensor.NAME] = [{
-      'time': workspace[TimerSensor.NAME],
+      'time': workspace['timer'],
       'position': np.array(sample['pos'], dtype=np.float64).reshape((3,)),
       'orientation': geometry_helpers.quat_from_fwd_up(sample['dir'], sample['up']),
       'velocity': np.array(sample['vel'], dtype=np.float64).reshape((3,))
@@ -38,16 +38,5 @@ class ElectricsSensor(ClassicSensorBase):
   TYPE = beamngpy.sensors.Electrics
 
   def parse(self, workspace, sample):
-    workspace[ElectricsSensor.NAME] = [{
-      'time': workspace[TimerSensor.NAME],
-      'wheelspeed': sample['wheelspeed'],
-      'gear': sample['gear']
-    }]
-
-@factory('timer', FACTORY_MAP)
-class TimerSensor(ClassicSensorBase):
-  NAME = 'timer'
-  TYPE = beamngpy.sensors.Timer
-
-  def parse(self, workspace, sample):
-    workspace[TimerSensor.NAME] = sample['time']
+    sample['time'] = workspace['timer']
+    workspace[ElectricsSensor.NAME] = [sample]

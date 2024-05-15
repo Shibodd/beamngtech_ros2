@@ -4,6 +4,7 @@ from utils.param_parser import ParameterParser, ParameterType
 from .factories import factory
 import numpy as np
 from utils.map_to_track_transform import MapToTrackTransform
+import utils.geometry_helpers as geometry_helpers
 
 FACTORY_MAP = {}
 
@@ -63,7 +64,9 @@ class MapToTrackTransformer:
 
     if self.transform is not None:
       for typ, src, dst in self.apply_to:
-        workspace[dst] = self.APPLY_MAP[typ](self.transform, workspace[src])
+        data = workspace[src]
+        if len(data) > 0:
+          workspace[dst] = self.APPLY_MAP[typ](self.transform, data)
     else:
       for _, __, dst in self.apply_to:
         workspace[dst] = []
@@ -78,11 +81,22 @@ class CopyTransformer:
   def tick(self, workspace):
     workspace[self.destination] = workspace[self.source]
 
-@factory('test', FACTORY_MAP)
-class TestTransformer:
+@factory('global_to_local_velocity', FACTORY_MAP)
+class GlobalToLocalVelocityTransformer:
   def __init__(self, node, prefix):
     params = ParameterParser(node, prefix)
+    self.velocity_source = params.expected('velocity_source', ParameterType.PARAMETER_STRING)
+    self.orientation_source = params.expected('orientation_source', ParameterType.PARAMETER_STRING)
+    self.destination = params.expected('destination', ParameterType.PARAMETER_STRING)
   
   def tick(self, workspace):
-    # workspace[]
-    pass
+    velocity = np.array(workspace[self.velocity_source])
+    orientation = np.array(workspace[self.orientation_source])
+
+    mat = geometry_helpers.quat_to_matrix(orientation)
+    fwd = mat[:, :, 0]
+    left = mat[:, :, 1]
+    
+    workspace[self.destination] = {}
+    workspace[self.destination]['vx'] = np.sum(fwd * velocity, axis=1)
+    workspace[self.destination]['vy'] = np.sum(left * velocity, axis=1)

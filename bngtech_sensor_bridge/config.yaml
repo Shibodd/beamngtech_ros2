@@ -12,11 +12,13 @@
       ai_span: false
       # deterministic_hz: 200
     
-    bag_writer:
-      path: "output.bag"
+    #bag_writer:
+    #  path: "output.bag"
 
-    # classic_sensors: [ 'timer', 'state', 'electrics' ]
-    classic_sensors: []
+    classic_sensors: [ 'state', 'electrics' ]
+
+    classic_time_compensator:
+      advanced_time_source: 'imu'
 
     transformers:
       _0:
@@ -33,7 +35,12 @@
           "orientation: imu_track[].orientation",
           "vector: imu_track[].angular_velocity",
         ]
-      
+
+      _2:
+        type: global_to_local_velocity
+        orientation_source: state[].orientation
+        velocity_source: state[].velocity
+        destination: local_velocity
 
     automated_sensors:
       _0:

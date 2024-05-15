@@ -10,6 +10,8 @@ from utils.workspace import Workspace
 import writers
 import utils.qos
 
+from classic_time_compensator import ClassicTimeCompensator
+
 class BeamNGTechSensorBridgeNode(rclpy.node.Node):
   EGO_VEHICLE_ID = 'ego_vehicle'
 
@@ -26,10 +28,14 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
   def init(self):
     self._init_sim()
 
-    self.classic_sensors = factories.parse_simple_list(self, 'classic_sensors', factories.classic_sensors.FACTORY_MAP)
     self.automated_sensors = factories.parse_list(self, 'automated_sensors', factories.automated_sensors.FACTORY_MAP)
     self.transformers = factories.parse_list(self, 'transformers', factories.transformers.FACTORY_MAP)
     self.outputs = factories.parse_list(self, 'outputs', factories.outputs.FACTORY_MAP)
+    self.classic_sensors = factories.parse_simple_list(self, 'classic_sensors', factories.classic_sensors.FACTORY_MAP)
+
+    if len(self.classic_sensors) > 0:
+      self.vehicle.sensors.attach('timer', beamngpy.sensors.Timer())
+      self.classic_time_compensator = ClassicTimeCompensator(self)
 
     topics = list(itertools.chain.from_iterable(out.get_topics() for out in self.outputs))
     self.writers = [ writers.MessagePublisher(self, topics), writers.BagWriter(self, topics) ]
@@ -93,15 +99,22 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
       self.bng.scenario.start()
       if ai_span:
         self.vehicle.ai.set_mode('span')
-  
+
+    self.vehicle.control(steering=1, throttle=0.05)
+
   def tick(self):
     workspace = Workspace()
 
+    for sensor in self.automated_sensors:
+      sensor.poll(workspace)
+      
     if len(self.classic_sensors) > 0:
       self.vehicle.sensors.poll()
+      workspace['timer'] = self.vehicle.sensors.data['timer']['time']
+      self.classic_time_compensator.compensate(workspace)
       
-    for sensor in itertools.chain(self.classic_sensors, self.automated_sensors):
-      sensor.poll(workspace)
+      for sensor in self.classic_sensors:
+        sensor.poll(workspace)
 
     for transformer in self.transformers:
       transformer.tick(workspace)
@@ -112,7 +125,6 @@ class BeamNGTechSensorBridgeNode(rclpy.node.Node):
 
     for writer in self.writers:
       writer.write(msgs)
-
 
 if __name__ == '__main__':
   rclpy.init()
